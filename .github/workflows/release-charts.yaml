@@ -15,6 +15,11 @@ on:
         required: true
         default: ""
 
+env:
+  CHARTS_REF: ${{ github.event.inputs.charts_ref }}
+  PREV_WEBHOOK: ${{ github.event.inputs.prev_webhook }}
+  NEW_WEBHOOK: ${{ github.event.inputs.new_webhook }}
+
 jobs:
   create-rancher-charts-pr:
     runs-on: ubuntu-latest
@@ -46,11 +51,11 @@ jobs:
           git config --global user.name "tomleb webhook Bot"
           git remote add upstream https://github.com/rancher/charts
           git fetch upstream
-          git checkout -b $BRANCH upstream/${{github.event.inputs.charts_ref}}
+          git checkout -b $BRANCH "$CHARTS_REF"
 
       - name: Run release script
         run: |
-          ./webhook/.github/workflows/scripts/release-against-charts.sh charts ${{github.event.inputs.prev_webhook}} ${{github.event.inputs.new_webhook}}
+          ./webhook/.github/workflows/scripts/release-against-charts.sh charts "$PREV_WEBHOOK" "$NEW_WEBHOOK"
 
       - name: Push and create pull request
         env:
@@ -59,13 +64,13 @@ jobs:
           cd charts
           git push origin $BRANCH
 
-          body=$(../webhook/.github/workflows/scripts/release-message.sh ${{github.event.inputs.prev_webhook}} ${{github.event.inputs.new_webhook}})
+          body=$(../webhook/.github/workflows/scripts/release-message.sh "$PREV_WEBHOOK" "$NEW_WEBHOOK")
 
-          gh pr create \
-            --title "[${{github.event.inputs.rancher_ref}}] Test GHA: Bump rancher-webhook to v${{github.event.inputs.new_webhook}}" \
+          echo gh pr create \
+            --title "[$CHARTS_REF] Test GHA: Bump rancher-webhook to v${NEW_WEBHOOK}" \
             --body "$body" \
-            --repo rancher/charts \
+            --repo tomleb/rancher-charts \
             --head "tomleb:$BRANCH" \
-            --base "${{github.event.inputs.rancher_ref}}" \
+            --base "dev-v2.9" \
             --draft
           # --base "${{github.event.inputs.charts_ref}}" \
