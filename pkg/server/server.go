@@ -18,8 +18,8 @@ import (
 	"github.com/rancher/dynamiclistener"
 	"github.com/rancher/dynamiclistener/server"
 	"github.com/rancher/webhook/pkg/admission"
-	"github.com/rancher/webhook/pkg/clients"
 	"github.com/rancher/webhook/pkg/health"
+	"github.com/rancher/wrangler/v3/pkg/clients"
 	admissionregistration "github.com/rancher/wrangler/v3/pkg/generated/controllers/admissionregistration.k8s.io/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/admissionregistration/v1"
@@ -62,8 +62,8 @@ var tlsOpt = func(config *tls.Config) {
 }
 
 // ListenAndServe starts the webhook server.
-func ListenAndServe(ctx context.Context, cfg *rest.Config, mcmEnabled bool) error {
-	clients, err := clients.New(ctx, cfg, mcmEnabled)
+func ListenAndServe(ctx context.Context, cfg *rest.Config, validators []admission.ValidatingAdmissionHandler, mutators []admission.MutatingAdmissionHandler) error {
+	clients, err := clients.NewFromConfig(cfg, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create a new client: %w", err)
 	}
@@ -73,16 +73,6 @@ func ListenAndServe(ctx context.Context, cfg *rest.Config, mcmEnabled bool) erro
 		// This will not affect functionality of the webhook, but users may have to perform the workaround:
 		// https://github.com/rancher/docs/issues/3637
 		logrus.Infof("[ListenAndServe] could not set certificate expiration days via environment variable: %v", err)
-	}
-
-	validators, err := Validation(clients)
-	if err != nil {
-		return err
-	}
-
-	mutators, err := Mutation(clients)
-	if err != nil {
-		return err
 	}
 
 	if err = listenAndServe(ctx, clients, validators, mutators); err != nil {
