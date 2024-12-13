@@ -21,6 +21,8 @@ echo "Syncing github.com/rancher/rancher/pkg/apis"
 go mod edit "-require=github.com/rancher/rancher/pkg/apis@$rancher_ref_version"
 
 for dep in $DEPS_TO_SYNC; do
+  echo "Rancher Dep $dep $(echo "$rancher_deps" | grep "^$dep@\w*\S")"
+  echo "Webhook Dep $dep $(echo "$webhook_deps" | grep "^$dep@\w*\S")"
   rancher_version=$(echo "$rancher_deps" | grep "^$dep@\w*\S" | head -n 1 | cut -d' ' -f1 | cut -d@ -f2)
   webhook_version=$(echo "$webhook_deps" | grep "^$dep@\w*\S" | head -n 1 | cut -d' ' -f1 | cut -d@ -f2)
   if [ -z "$webhook_version" ] || [ -z "$rancher_version" ] || [ "$rancher_version" = "$webhook_version" ]; then
