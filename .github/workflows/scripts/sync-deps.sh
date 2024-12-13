@@ -5,11 +5,7 @@ set -e
 RANCHER_REPO_DIR=$1
 
 DEPS_TO_SYNC="
-  github.com/rancher/dynamiclistener
-  github.com/rancher/lasso
   github.com/rancher/wrangler
-  github.com/rancher/wrangler/v2
-  github.com/rancher/wrangler/v3
 "
 
 rancher_deps=$(cd "$RANCHER_REPO_DIR" && go mod graph)
