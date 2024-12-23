@@ -25,6 +25,7 @@ jobs:
           fetch-depth: 0
           repository: ${{ github.repository_owner }}/rancher-charts
           ref: "${{ env.CHARTS_REF }}"
+          token: "${{ secrets.GITHUB_TOKEN }}"
           path: charts
           # Allow making git push request later on
           persist-credentials: true
