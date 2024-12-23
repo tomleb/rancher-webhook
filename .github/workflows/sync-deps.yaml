@@ -22,7 +22,6 @@ jobs:
       - name: Checkout charts repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           repository: ${{ github.repository_owner }}/rancher-charts
           ref: "${{ env.CHARTS_REF }}"
           token: "${{ secrets.MY_SECRET }}"
