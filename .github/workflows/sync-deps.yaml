@@ -34,5 +34,5 @@ jobs:
           cd charts
           BRANCH="bump-webhook-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "BRANCH=${BRANCH}" >> $GITHUB_ENV
-          git checkout -b "$BRANCH" "$CHARTS_REF"
+          git checkout -b "$BRANCH"
           git push origin "$BRANCH"
