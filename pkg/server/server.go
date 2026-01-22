@@ -22,11 +22,9 @@ import (
 	"github.com/rancher/webhook/pkg/admission"
 	"github.com/rancher/webhook/pkg/clients"
 	"github.com/rancher/webhook/pkg/health"
-	admissionregistration "github.com/rancher/wrangler/v3/pkg/generated/controllers/admissionregistration.k8s.io/v1"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -180,11 +178,9 @@ func listenAndServe(ctx context.Context, clients *clients.Clients, validators []
 	}
 
 	handler := &secretHandler{
-		validators:           validators,
-		mutators:             mutators,
-		errChecker:           errChecker,
-		validatingController: clients.Admission.ValidatingWebhookConfiguration(),
-		mutatingController:   clients.Admission.MutatingWebhookConfiguration(),
+		validators: validators,
+		mutators:   mutators,
+		errChecker: errChecker,
 	}
 	clients.Core.Secret().OnChange(ctx, "secrets", handler.sync)
 
@@ -223,11 +219,9 @@ func listenAndServe(ctx context.Context, clients *clients.Clients, validators []
 }
 
 type secretHandler struct {
-	validators           []admission.ValidatingAdmissionHandler
-	mutators             []admission.MutatingAdmissionHandler
-	errChecker           *health.ErrorChecker
-	validatingController admissionregistration.ValidatingWebhookConfigurationClient
-	mutatingController   admissionregistration.MutatingWebhookConfigurationClient
+	validators []admission.ValidatingAdmissionHandler
+	mutators   []admission.MutatingAdmissionHandler
+	errChecker *health.ErrorChecker
 }
 
 // sync updates the validating admission configuration whenever the TLS cert changes.
@@ -244,103 +238,9 @@ func (s *secretHandler) sync(_ string, secret *corev1.Secret) (*corev1.Secret, e
 		return nil, nil
 	}
 
-	logrus.Info("Applying webhook config")
-
-	validationClientConfig := v1.WebhookClientConfig{
-		Service: &v1.ServiceReference{
-			Namespace: namespace,
-			Name:      serviceName,
-			Path:      admission.Ptr(validationPath),
-			Port:      admission.Ptr(clientPort),
-		},
-		CABundle: secret.Data[corev1.TLSCertKey],
-	}
-
-	mutationClientConfig := v1.WebhookClientConfig{
-		Service: &v1.ServiceReference{
-			Namespace: namespace,
-			Name:      serviceName,
-			Path:      admission.Ptr(mutationPath),
-			Port:      admission.Ptr(clientPort),
-		},
-		CABundle: secret.Data[corev1.TLSCertKey],
-	}
-	if devURL, ok := os.LookupEnv(webhookURLEnvKey); ok {
-		validationURL := devURL + validationPath
-		mutationURL := devURL + mutationPath
-		validationClientConfig = v1.WebhookClientConfig{
-			URL: &validationURL,
-		}
-		mutationClientConfig = v1.WebhookClientConfig{
-			URL: &mutationURL,
-		}
-	}
-	validatingWebhooks := make([]v1.ValidatingWebhook, 0, len(s.validators))
-	for _, webhook := range s.validators {
-		validatingWebhooks = append(validatingWebhooks, webhook.ValidatingWebhook(validationClientConfig)...)
-	}
-	mutatingWebhooks := make([]v1.MutatingWebhook, 0, len(s.mutators))
-	for _, webhook := range s.mutators {
-		mutatingWebhooks = append(mutatingWebhooks, webhook.MutatingWebhook(mutationClientConfig)...)
-	}
-	validatingConfig := &v1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "rancher.cattle.io",
-		},
-		Webhooks: validatingWebhooks,
-	}
-	mutatingConfig := &v1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "rancher.cattle.io",
-		},
-		Webhooks: mutatingWebhooks,
-	}
-	err := s.ensureWebhookConfiguration(validatingConfig, mutatingConfig)
-	if err != nil {
-		logrus.Errorf("Failed to ensure configuration: %s", err.Error())
-	}
-
-	s.errChecker.Store(err)
-	return secret, err
-
-}
-
-// ensureWebhookConfiguration creates or updates the current validating and mutating webhook configuration to have the desired webhook.
-func (s *secretHandler) ensureWebhookConfiguration(validatingConfig *v1.ValidatingWebhookConfiguration, mutatingConfig *v1.MutatingWebhookConfiguration) error {
-
-	currValidating, err := s.validatingController.Get(validatingConfig.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = s.validatingController.Create(validatingConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create validating configuration: %w", err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("failed to get validating configuration: %w", err)
-	} else {
-		currValidating.Webhooks = validatingConfig.Webhooks
-		_, err = s.validatingController.Update(currValidating)
-		if err != nil {
-			return fmt.Errorf("failed to update validating configuration: %w", err)
-		}
-	}
-
-	currMutation, err := s.mutatingController.Get(mutatingConfig.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = s.mutatingController.Create(mutatingConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create mutating configuration: %w", err)
-		}
-	} else if err != nil {
-		return fmt.Errorf("failed to get mutating configuration: %w", err)
-	} else {
-		currMutation.Webhooks = mutatingConfig.Webhooks
-		_, err = s.mutatingController.Update(currMutation)
-		if err != nil {
-			return fmt.Errorf("failed to update mutating configuration: %w", err)
-		}
-	}
-
-	return nil
+	logrus.Info("Webhook configuration is managed externally. Skipping dynamic update.")
+	s.errChecker.Store(nil)
+	return secret, nil
 }
 
 // certAuth returns a middleware for cert-based authentication.
