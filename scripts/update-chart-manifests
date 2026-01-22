@@ -1,0 +1,45 @@
+#!/bin/bash
+set -e
+
+# Build the webhook binary
+go build -o webhook .
+
+# Create a temporary directory for generated files
+TMP_DIR=$(mktemp -d)
+
+# Function to process files and move to chart
+process_and_move() {
+    local enable_mcm=$1
+    local suffix=$2
+    local condition_start=$3
+    local condition_end="{{- end }}"
+
+    # Generate files
+    ENABLE_MCM=$enable_mcm ./webhook --dry-run-dump "$TMP_DIR"
+
+    # Process MutatingWebhookConfiguration
+    cat > "charts/rancher-webhook/templates/mutatingwebhookconfiguration${suffix}.yaml" <<EOF
+$condition_start
+$(sed 's/caBundle: Y2EtYnVuZGxl/caBundle: {{ .Values.caBundle }}/' "$TMP_DIR/mutating-webhook-configuration.yaml")
+$condition_end
+EOF
+
+    # Process ValidatingWebhookConfiguration
+    cat > "charts/rancher-webhook/templates/validatingwebhookconfiguration${suffix}.yaml" <<EOF
+$condition_start
+$(sed 's/caBundle: Y2EtYnVuZGxl/caBundle: {{ .Values.caBundle }}/' "$TMP_DIR/validating-webhook-configuration.yaml")
+$condition_end
+EOF
+}
+
+# Process MCM Enabled
+process_and_move "true" "" "{{- if .Values.mcm.enabled }}"
+
+# Process MCM Disabled
+process_and_move "false" "-no-mcm" "{{- if not .Values.mcm.enabled }}"
+
+# Cleanup
+rm -rf "$TMP_DIR"
+rm webhook
+
+echo "Chart manifests updated successfully."

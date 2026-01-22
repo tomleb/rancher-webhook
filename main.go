@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -35,6 +36,18 @@ func run() error {
 	}
 
 	logrus.Infof("Rancher-webhook version %s is starting", fmt.Sprintf("%s (%s)", Version, GitCommit))
+
+	if len(os.Args) > 1 && os.Args[1] == "--dry-run-dump" {
+		cfg, err := kubeconfig.GetNonInteractiveClientConfig(os.Getenv("KUBECONFIG")).ClientConfig()
+		if err != nil {
+			return err
+		}
+		var outputDir string
+		if len(os.Args) > 2 {
+			outputDir = os.Args[2]
+		}
+		return server.PrintWebhookConfig(context.Background(), cfg, os.Getenv("ENABLE_MCM") != "false", outputDir)
+	}
 
 	cfg, err := kubeconfig.GetNonInteractiveClientConfig(os.Getenv("KUBECONFIG")).ClientConfig()
 	if err != nil {

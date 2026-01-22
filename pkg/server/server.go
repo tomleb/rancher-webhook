@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -417,4 +418,98 @@ func getAllowedCNs() []string {
 		return nil
 	}
 	return strings.Split(allowedCNString, ",")
+}
+
+func PrintWebhookConfig(ctx context.Context, cfg *rest.Config, mcmEnabled bool, outputDir string) error {
+	clients, err := clients.NewWithOptions(ctx, cfg, &clients.Options{
+		MCMEnabled: mcmEnabled,
+		StartCache: false,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create a new client: %w", err)
+	}
+
+	validators, err := Validation(clients)
+	if err != nil {
+		return err
+	}
+
+	mutators, err := Mutation(clients)
+	if err != nil {
+		return err
+	}
+
+	validationClientConfig := v1.WebhookClientConfig{
+		Service: &v1.ServiceReference{
+			Namespace: namespace,
+			Name:      serviceName,
+			Path:      admission.Ptr(validationPath),
+			Port:      admission.Ptr(clientPort),
+		},
+		CABundle: []byte("ca-bundle"),
+	}
+
+	mutationClientConfig := v1.WebhookClientConfig{
+		Service: &v1.ServiceReference{
+			Namespace: namespace,
+			Name:      serviceName,
+			Path:      admission.Ptr(mutationPath),
+			Port:      admission.Ptr(clientPort),
+		},
+		CABundle: []byte("ca-bundle"),
+	}
+
+	validatingWebhooks := make([]v1.ValidatingWebhook, 0, len(validators))
+	for _, webhook := range validators {
+		validatingWebhooks = append(validatingWebhooks, webhook.ValidatingWebhook(validationClientConfig)...)
+	}
+	mutatingWebhooks := make([]v1.MutatingWebhook, 0, len(mutators))
+	for _, webhook := range mutators {
+		mutatingWebhooks = append(mutatingWebhooks, webhook.MutatingWebhook(mutationClientConfig)...)
+	}
+	validatingConfig := &v1.ValidatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ValidatingWebhookConfiguration",
+			APIVersion: "admissionregistration.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "rancher.cattle.io",
+		},
+		Webhooks: validatingWebhooks,
+	}
+	mutatingConfig := &v1.MutatingWebhookConfiguration{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "MutatingWebhookConfiguration",
+			APIVersion: "admissionregistration.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "rancher.cattle.io",
+		},
+		Webhooks: mutatingWebhooks,
+	}
+
+	validatingYAML, err := yaml.Marshal(validatingConfig)
+	if err != nil {
+		return err
+	}
+
+	mutatingYAML, err := yaml.Marshal(mutatingConfig)
+	if err != nil {
+		return err
+	}
+
+	if outputDir != "" {
+		if err := os.WriteFile(filepath.Join(outputDir, "validating-webhook-configuration.yaml"), validatingYAML, 0644); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(outputDir, "mutating-webhook-configuration.yaml"), mutatingYAML, 0644); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	fmt.Printf("---\n%s", validatingYAML)
+	fmt.Printf("---\n%s", mutatingYAML)
+
+	return nil
 }

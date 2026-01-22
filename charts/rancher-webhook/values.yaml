@@ -3,6 +3,10 @@ image:
   tag: latest
   imagePullPolicy: IfNotPresent
 
+# caBundle is the CA bundle used by the API server to validate the webhook server certificate.
+# It must be base64 encoded.
+caBundle: ""
+
 global:
   cattle:
     systemDefaultRegistry: ""

@@ -29,7 +29,19 @@ type Clients struct {
 	DefaultResolver        validation.AuthorizationRuleResolver
 }
 
+type Options struct {
+	MCMEnabled bool
+	StartCache bool
+}
+
 func New(ctx context.Context, rest *rest.Config, mcmEnabled bool) (*Clients, error) {
+	return NewWithOptions(ctx, rest, &Options{
+		MCMEnabled: mcmEnabled,
+		StartCache: true,
+	})
+}
+
+func NewWithOptions(ctx context.Context, rest *rest.Config, opts *Options) (*Clients, error) {
 	clients, err := clients.NewFromConfig(rest, nil)
 	if err != nil {
 		return nil, err
@@ -54,8 +66,10 @@ func New(ctx context.Context, rest *rest.Config, mcmEnabled bool) (*Clients, err
 		return nil, err
 	}
 
-	if err = mgmt.Start(ctx, 5); err != nil {
-		return nil, err
+	if opts.StartCache {
+		if err = mgmt.Start(ctx, 5); err != nil {
+			return nil, err
+		}
 	}
 
 	rbacRestGetter := auth.RBACRestGetter{
@@ -70,11 +84,11 @@ func New(ctx context.Context, rest *rest.Config, mcmEnabled bool) (*Clients, err
 		Management:             mgmt.Management().V3(),
 		Provisioning:           prov.Provisioning().V1(),
 		RKE:                    rke.Rke().V1(),
-		MultiClusterManagement: mcmEnabled,
+		MultiClusterManagement: opts.MCMEnabled,
 		DefaultResolver:        validation.NewDefaultRuleResolver(rbacRestGetter, rbacRestGetter, rbacRestGetter, rbacRestGetter),
 	}
 
-	if mcmEnabled {
+	if opts.MCMEnabled {
 		result.RoleTemplateResolver = auth.NewRoleTemplateResolver(mgmt.Management().V3().RoleTemplate().Cache(), clients.RBAC.ClusterRole().Cache())
 		result.GlobalRoleResolver = auth.NewGlobalRoleResolver(result.RoleTemplateResolver, mgmt.Management().V3().GlobalRole().Cache())
 	}

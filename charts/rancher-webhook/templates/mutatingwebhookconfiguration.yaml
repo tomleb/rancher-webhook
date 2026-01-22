@@ -1,0 +1,187 @@
+{{- if .Values.mcm.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: rancher.cattle.io
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: {{ .Values.caBundle }}
+    service:
+      name: rancher-webhook
+      namespace: cattle-system
+      path: /v1/webhook/mutation/clusters.provisioning.cattle.io
+      port: 443
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: rancher.cattle.io.clusters.provisioning.cattle.io
+  rules:
+  - apiGroups:
+    - provisioning.cattle.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - clusters
+    scope: Namespaced
+  sideEffects: NoneOnDryRun
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: {{ .Values.caBundle }}
+    service:
+      name: rancher-webhook
+      namespace: cattle-system
+      path: /v1/webhook/mutation/clusters.management.cattle.io
+      port: 443
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: rancher.cattle.io.clusters.management.cattle.io
+  rules:
+  - apiGroups:
+    - management.cattle.io
+    apiVersions:
+    - v3
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - clusters
+    scope: Cluster
+  sideEffects: NoneOnDryRun
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: {{ .Values.caBundle }}
+    service:
+      name: rancher-webhook
+      namespace: cattle-system
+      path: /v1/webhook/mutation/fleetworkspaces.management.cattle.io
+      port: 443
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: rancher.cattle.io.fleetworkspaces.management.cattle.io
+  rules:
+  - apiGroups:
+    - management.cattle.io
+    apiVersions:
+    - v3
+    operations:
+    - CREATE
+    resources:
+    - fleetworkspaces
+    scope: Cluster
+  sideEffects: NoneOnDryRun
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: {{ .Values.caBundle }}
+    service:
+      name: rancher-webhook
+      namespace: cattle-system
+      path: /v1/webhook/mutation/rke-machine-config.cattle.io
+      port: 443
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: rancher.cattle.io.rke-machine-config.cattle.io
+  rules:
+  - apiGroups:
+    - rke-machine-config.cattle.io
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - '*'
+    scope: Namespaced
+  sideEffects: NoneOnDryRun
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: {{ .Values.caBundle }}
+    service:
+      name: rancher-webhook
+      namespace: cattle-system
+      path: /v1/webhook/mutation/secrets
+      port: 443
+  failurePolicy: Fail
+  matchConditions:
+  - expression: request.operation == 'DELETE' || (object != null && object.type ==
+      "provisioning.cattle.io/cloud-credential" && request.operation == 'CREATE')
+      || (object != null && object.metadata.namespace == "cattle-local-user-passwords")
+    name: filter-by-secret-type-cloud-credential
+  matchPolicy: Equivalent
+  name: rancher.cattle.io.secrets
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - DELETE
+    - UPDATE
+    resources:
+    - secrets
+    scope: Namespaced
+  sideEffects: NoneOnDryRun
+  timeoutSeconds: 15
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: {{ .Values.caBundle }}
+    service:
+      name: rancher-webhook
+      namespace: cattle-system
+      path: /v1/webhook/mutation/projects.management.cattle.io
+      port: 443
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: rancher.cattle.io.projects.management.cattle.io
+  rules:
+  - apiGroups:
+    - management.cattle.io
+    apiVersions:
+    - v3
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - projects
+    scope: Namespaced
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: {{ .Values.caBundle }}
+    service:
+      name: rancher-webhook
+      namespace: cattle-system
+      path: /v1/webhook/mutation/globalrolebindings.management.cattle.io
+      port: 443
+  failurePolicy: Fail
+  matchPolicy: Equivalent
+  name: rancher.cattle.io.globalrolebindings.management.cattle.io
+  rules:
+  - apiGroups:
+    - management.cattle.io
+    apiVersions:
+    - v3
+    operations:
+    - CREATE
+    resources:
+    - globalrolebindings
+    scope: Cluster
+  sideEffects: None
+{{- end }}
