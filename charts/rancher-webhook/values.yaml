@@ -1,6 +1,6 @@
 image:
-  repository: rancher/rancher-webhook
-  tag: latest
+  repository: tlebreux/rancher-webhook
+  tag: webhookconfig-in-helmchart
   imagePullPolicy: IfNotPresent
 
 # caBundle is the CA bundle used by the API server to validate the webhook server certificate.
