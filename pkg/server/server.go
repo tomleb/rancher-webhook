@@ -16,10 +16,8 @@ import (
 	"time"
 
 	"github.com/rancher/webhook/pkg/admission"
-	"github.com/rancher/webhook/pkg/clients"
 	"github.com/rancher/webhook/pkg/health"
 	"github.com/sirupsen/logrus"
-	"k8s.io/client-go/rest"
 )
 
 const (
@@ -49,27 +47,23 @@ var tlsOpt = func(config *tls.Config) {
 	config.ClientAuth = tls.RequestClientCert
 }
 
-// ListenAndServe starts the webhook server.
-func ListenAndServe(ctx context.Context, cfg *rest.Config, mcmEnabled bool) error {
-	clients, err := clients.New(ctx, cfg, mcmEnabled)
-	if err != nil {
-		return fmt.Errorf("failed to create a new client: %w", err)
-	}
-
-	validators, err := Validation(clients)
-	if err != nil {
-		return err
-	}
-
-	mutators, err := Mutation(clients)
-	if err != nil {
-		return err
-	}
-
-	return listenAndServe(ctx, clients, validators, mutators)
+// Options configures ListenAndServe.
+type Options struct {
+	// Validators and Mutators are the admission handlers served under the
+	// validation and mutation paths.
+	Validators []admission.ValidatingAdmissionHandler
+	Mutators   []admission.MutatingAdmissionHandler
+	// Start is called once the HTTPS listener is up, to start the caller's
+	// informer caches. May be nil.
+	Start func(ctx context.Context) error
 }
 
-func listenAndServe(ctx context.Context, clients *clients.Clients, validators []admission.ValidatingAdmissionHandler, mutators []admission.MutatingAdmissionHandler) (rErr error) {
+// ListenAndServe serves the given admission handlers until ctx is done.
+func ListenAndServe(ctx context.Context, opts Options) error {
+	return listenAndServe(ctx, opts.Start, opts.Validators, opts.Mutators)
+}
+
+func listenAndServe(ctx context.Context, start func(context.Context) error, validators []admission.ValidatingAdmissionHandler, mutators []admission.MutatingAdmissionHandler) (rErr error) {
 	router := http.NewServeMux()
 	errChecker := health.NewErrorChecker("config-applied")
 	health.RegisterHealthCheckers(router, errChecker)
@@ -138,8 +132,10 @@ func listenAndServe(ctx context.Context, clients *clients.Clients, validators []
 		}
 	}()
 
-	if err := clients.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start clients: %w", err)
+	if start != nil {
+		if err := start(ctx); err != nil {
+			return fmt.Errorf("failed to start clients: %w", err)
+		}
 	}
 
 	<-ctx.Done()
